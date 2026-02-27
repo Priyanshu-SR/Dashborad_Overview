@@ -1,0 +1,2430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>LeadQ — Lead Qualification Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+/* ── Reset & Base ─────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root {
+  --bg:        #060a10;
+  --surface:   rgba(16,22,32,0.75);
+  --surface-solid: #101620;
+  --surface2:  rgba(24,34,50,0.8);
+  --border:    rgba(255,255,255,0.06);
+  --border-glow: rgba(59,130,246,0.25);
+  --text:      #e8edf5;
+  --text-dim:  #6b7d96;
+  --accent:    #3b82f6;
+  --accent2:   #8b5cf6;
+  --green:     #10b981;
+  --red:       #ef4444;
+  --orange:    #f59e0b;
+  --cyan:      #06b6d4;
+  --radius:    14px;
+  --font:      'Outfit', system-ui, sans-serif;
+  --mono:      'JetBrains Mono', monospace;
+  --glow-sm:   0 0 20px rgba(59,130,246,0.08);
+  --glow-md:   0 0 40px rgba(59,130,246,0.12);
+  --glow-lg:   0 8px 60px rgba(59,130,246,0.15);
+  --glass:     saturate(1.8) blur(20px);
+}
+html { font-size: 15px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+/* Animated background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: 
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(59,130,246,0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(139,92,246,0.06), transparent),
+    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(6,182,212,0.05), transparent);
+  animation: bgShift 20s ease-in-out infinite alternate;
+}
+/* Dot grid overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+@keyframes bgShift {
+  0%   { transform: scale(1) translate(0, 0); }
+  50%  { transform: scale(1.1) translate(-2%, 3%); }
+  100% { transform: scale(1) translate(2%, -2%); }
+}
+a { color: var(--accent); text-decoration: none; }
+
+/* ── Scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* ── Animations ────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(59,130,246,0.15); }
+  50%      { border-color: rgba(59,130,246,0.35); }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+.anim-fade-up {
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-stagger-1 { animation-delay: 0.05s; }
+.anim-stagger-2 { animation-delay: 0.1s; }
+.anim-stagger-3 { animation-delay: 0.15s; }
+.anim-stagger-4 { animation-delay: 0.2s; }
+.anim-stagger-5 { animation-delay: 0.25s; }
+.anim-stagger-6 { animation-delay: 0.3s; }
+
+/* ── Layout ─────────────────────────────────────── */
+.app {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+.sidebar {
+  width: 260px;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border-right: 1px solid var(--border);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  z-index: 100;
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  overflow-y: auto;
+}
+.main {
+  margin-left: 260px;
+  flex: 1;
+  padding: 32px 36px;
+  min-width: 0;
+  width: calc(100% - 260px);
+  animation: fadeIn 0.4s ease;
+}
+
+/* ── Sidebar ────────────────────────────────────── */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 36px;
+}
+.logo-icon {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(59,130,246,0.3);
+  animation: floatSoft 4s ease-in-out infinite;
+}
+.logo span {
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.logo small {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.nav-section {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin: 24px 0 10px;
+  font-weight: 600;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  margin-bottom: 2px;
+  position: relative;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  transform: translateX(3px);
+}
+.nav-item.active {
+  background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.08));
+  color: var(--accent);
+  box-shadow: inset 0 0 20px rgba(59,130,246,0.05);
+}
+/* Active indicator bar */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: linear-gradient(to bottom, var(--accent), var(--accent2));
+  border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 12px rgba(59,130,246,0.4);
+}
+.nav-item svg { width: 18px; height: 18px; opacity: 0.6; transition: opacity 0.2s; }
+.nav-item:hover svg { opacity: 0.9; }
+.nav-item.active svg { opacity: 1; }
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ── Top bar ────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.topbar h1 {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+.topbar h1 span { 
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 16px;
+  width: 300px;
+  transition: all 0.25s;
+}
+.search-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+.search-box svg { width: 16px; color: var(--text-dim); flex-shrink: 0; }
+.search-box input {
+  background: none; border: none; outline: none;
+  color: var(--text); font-family: var(--font);
+  font-size: 0.85rem; width: 100%;
+}
+.search-box input::placeholder { color: var(--text-dim); }
+
+/* ── Stats Cards ────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+/* Top color bar */
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  transition: height 0.3s, box-shadow 0.3s;
+}
+.stat-card.blue::after   { background: var(--accent); }
+.stat-card.green::after  { background: var(--green); }
+.stat-card.red::after    { background: var(--red); }
+.stat-card.orange::after { background: var(--orange); }
+.stat-card.purple::after { background: var(--accent2); }
+.stat-card.cyan::after   { background: var(--cyan); }
+
+/* Hover glow effect */
+.stat-card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-4px);
+  box-shadow: var(--glow-md);
+}
+.stat-card:hover::after { height: 4px; }
+.stat-card.blue:hover   { box-shadow: 0 8px 40px rgba(59,130,246,0.15); }
+.stat-card.green:hover  { box-shadow: 0 8px 40px rgba(16,185,129,0.15); }
+.stat-card.red:hover    { box-shadow: 0 8px 40px rgba(239,68,68,0.12); }
+.stat-card.orange:hover { box-shadow: 0 8px 40px rgba(245,158,11,0.12); }
+.stat-card.purple:hover { box-shadow: 0 8px 40px rgba(139,92,246,0.15); }
+.stat-card.cyan:hover   { box-shadow: 0 8px 40px rgba(6,182,212,0.12); }
+.stat-card.expanded { border-color: var(--accent); z-index: 20; }
+
+.stat-value {
+  font-size: 1.9rem;
+  font-weight: 800;
+  font-family: var(--font);
+  letter-spacing: -1.5px;
+  background: linear-gradient(to bottom, var(--text), rgba(226,232,240,0.7));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: countUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stat-sub {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.stat-card { cursor: pointer; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); position: relative; }
+.stat-hint {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.stat-card:hover .stat-hint { opacity: 1; }
+
+/* ── Stat Dropdown ──────────────────────────────── */
+.stat-dropdown-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  display: none;
+}
+.stat-dropdown-overlay.open { display: block; animation: fadeIn 0.2s ease; }
+
+.stat-dropdown {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 640px;
+  max-width: 92vw;
+  max-height: 80vh;
+  background: var(--surface-solid);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  z-index: 301;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 60px rgba(59,130,246,0.08);
+  animation: dropIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stat-dropdown.open { display: flex; }
+@keyframes dropIn {
+  from { opacity: 0; transform: translate(-50%, -48%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+.sd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sd-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sd-header .sd-count {
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  color: var(--text-dim);
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.sd-close {
+  background: none; border: none;
+  color: var(--text-dim); cursor: pointer;
+  font-size: 1.2rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.sd-close:hover { background: var(--surface2); color: var(--text); }
+
+.sd-search {
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sd-search input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 14px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sd-search input:focus { border-color: var(--accent); }
+.sd-search input::placeholder { color: var(--text-dim); }
+
+.sd-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.sd-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid rgba(30,42,56,0.5);
+}
+.sd-item:hover { background: rgba(59,130,246,0.04); }
+.sd-item:last-child { border-bottom: none; }
+
+.sd-phone {
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 130px;
+  color: var(--text);
+}
+.sd-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+.sd-arrow {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-left: 4px;
+  transition: transform 0.15s;
+}
+.sd-item:hover .sd-arrow { transform: translateX(3px); color: var(--accent); }
+
+.sd-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 22px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.sd-page-btns { display: flex; gap: 6px; }
+.sd-empty {
+  padding: 40px 22px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+/* ── Cards / Panels ─────────────────────────────── */
+.panel {
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 20px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.panel:hover {
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: var(--glow-sm);
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.panel-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.chart-row-2col {
+  grid-template-columns: 1fr 1fr;
+}
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 260px;
+}
+.chart-container-wide {
+  position: relative;
+  width: 100%;
+  height: 180px;
+}
+
+/* ── Info tooltips ──────────────────────────────── */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  cursor: help;
+  margin-left: 6px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.info-icon:hover { border-color: var(--accent); color: var(--accent); }
+.info-tip { display: none; }
+
+/* Global tooltip */
+#globalTip {
+  position: fixed;
+  z-index: 99999;
+  background: rgba(16,22,32,0.95);
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text);
+  line-height: 1.55;
+  width: 270px;
+  display: none;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 30px rgba(59,130,246,0.08);
+  pointer-events: none;
+  font-family: var(--font);
+  backdrop-filter: blur(12px);
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+.panel-title {
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Filters ────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.filter-btn {
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 500;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+.filter-btn:hover { border-color: rgba(59,130,246,0.4); color: var(--text); box-shadow: 0 0 16px rgba(59,130,246,0.08); }
+.filter-btn.active {
+  background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.1));
+  border-color: rgba(59,130,246,0.4);
+  color: var(--accent);
+  box-shadow: 0 0 20px rgba(59,130,246,0.1);
+}
+.filter-select {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: var(--font);
+  cursor: pointer;
+  outline: none;
+}
+
+/* ── Table ──────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+thead th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+thead th:hover { color: var(--text); }
+tbody tr {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+tbody tr:hover { 
+  background: rgba(59,130,246,0.04);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+/* ── Badges ─────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+.badge-green  { background: rgba(16,185,129,0.12); color: #34d399; box-shadow: 0 0 12px rgba(16,185,129,0.08); }
+.badge-red    { background: rgba(239,68,68,0.12);  color: #f87171; }
+.badge-blue   { background: rgba(59,130,246,0.12); color: #60a5fa; }
+.badge-orange { background: rgba(245,158,11,0.12); color: #fbbf24; }
+.badge-purple { background: rgba(139,92,246,0.12); color: #a78bfa; }
+.badge-gray   { background: rgba(122,139,160,0.08); color: var(--text-dim); }
+
+/* ── Confidence bar ─────────────────────────────── */
+.conf-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.conf-track {
+  width: 60px; height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.conf-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+.conf-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: shimmer 2s infinite;
+  background-size: 200% 100%;
+}
+.conf-val {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+/* ── Pagination ─────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.page-btns {
+  display: flex;
+  gap: 6px;
+}
+.page-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text); box-shadow: 0 0 12px rgba(59,130,246,0.1); }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Modal / Drawer ─────────────────────────────── */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 500;
+  display: none;
+  backdrop-filter: blur(6px);
+}
+.drawer-overlay.open { display: block; animation: fadeIn 0.2s ease; }
+.drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 560px;
+  max-width: 90vw;
+  background: var(--surface-solid);
+  border-left: 1px solid rgba(255,255,255,0.08);
+  z-index: 501;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow-y: auto;
+  padding: 28px;
+  box-shadow: -16px 0 60px rgba(0,0,0,0.4);
+}
+.drawer.open { transform: translateX(0); }
+.drawer-close {
+  position: absolute;
+  top: 20px; right: 20px;
+  background: none; border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 1.4rem;
+}
+.drawer h2 {
+  font-size: 1.2rem;
+  margin-bottom: 4px;
+}
+.drawer .session-id {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-bottom: 20px;
+}
+.detail-section {
+  margin-bottom: 24px;
+}
+.detail-section h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.detail-item label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  display: block;
+  margin-bottom: 3px;
+}
+.detail-item span {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Chat bubbles */
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.msg-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.msg-human {
+  align-self: flex-end;
+  background: linear-gradient(135deg, var(--accent), rgba(59,130,246,0.85));
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 2px 12px rgba(59,130,246,0.2);
+}
+.msg-ai {
+  align-self: flex-start;
+  background: var(--surface2);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--border);
+}
+.msg-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+
+/* Summary list */
+.summary-list {
+  list-style: none;
+  padding: 0;
+}
+.summary-list li {
+  padding: 6px 0;
+  padding-left: 16px;
+  position: relative;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.summary-list li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+/* Signal tags */
+.signal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.signal-tag {
+  padding: 4px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+/* ── Loading ────────────────────────────────────── */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: var(--text-dim);
+}
+.spinner {
+  width: 24px; height: 24px;
+  border: 3px solid rgba(59,130,246,0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-right: 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Sections ───────────────────────────────────── */
+.section { display: none; }
+.section.active { display: block; animation: fadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ── Responsive: Mobile toggle ──────────────────── */
+.mobile-toggle {
+  display: none;
+  position: fixed;
+  top: 14px; left: 14px;
+  z-index: 200;
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.mobile-toggle:hover { border-color: var(--accent); }
+
+/* ── TV / Ultra-wide (>1920px) ─────────────────── */
+@media (min-width: 1921px) {
+  html { font-size: 17px; }
+  .main { padding: 40px 60px; }
+  .stat-grid { grid-template-columns: repeat(6, 1fr); gap: 20px; }
+  .chart-row { gap: 24px; }
+  .chart-container { height: 300px; }
+  .stat-value { font-size: 2.2rem; }
+  .drawer { width: 680px; }
+}
+
+/* ── Large desktop (1280-1920px) — default ─────── */
+/* Already handled by base styles */
+
+/* ── Small desktop / large tablet landscape (1024-1280px) */
+@media (max-width: 1280px) {
+  .main { padding: 28px 24px; }
+  .stat-grid { grid-template-columns: repeat(3, 1fr); }
+  .stat-value { font-size: 1.6rem; }
+  .search-box { width: 240px; }
+}
+
+/* ── Tablet / small laptop (768-1024px) ────────── */
+@media (max-width: 1024px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; width: 100%; padding: 24px 20px; padding-top: 60px; }
+  .mobile-toggle { display: block; }
+  .stat-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .chart-row { grid-template-columns: 1fr 1fr; }
+  .chart-container { height: 240px; }
+  .chart-container-wide { height: 180px; }
+  .search-box { width: 220px; }
+  .drawer { width: 480px; max-width: 90vw; }
+  .stat-dropdown { width: 560px; }
+}
+
+/* ── Large phone / small tablet (600-768px) ────── */
+@media (max-width: 768px) {
+  html { font-size: 14px; }
+  .main { padding: 16px 14px; padding-top: 56px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .stat-card { padding: 16px; }
+  .stat-value { font-size: 1.5rem; }
+  .stat-label { font-size: 0.65rem; }
+  .chart-row { grid-template-columns: 1fr; gap: 14px; }
+  .chart-container { height: 220px; }
+  .chart-container-wide { height: 160px; }
+  .topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .topbar h1 { font-size: 1.3rem; }
+  .search-box { width: 100%; }
+  .drawer { width: 100vw; max-width: 100vw; border-radius: 0; }
+  .stat-dropdown { width: 94vw; max-width: 94vw; }
+  .panel { padding: 18px; }
+  .panel-title { font-size: 0.9rem; }
+  .filter-bar { gap: 6px; }
+  .filter-btn { padding: 6px 12px; font-size: 0.72rem; }
+  .filter-select { padding: 6px 10px; font-size: 0.72rem; }
+  table { font-size: 0.78rem; }
+  thead th { padding: 10px 8px; font-size: 0.62rem; }
+  tbody td { padding: 10px 8px; }
+  /* Analysis page 2-col charts go single */
+  .chart-row-2col { grid-template-columns: 1fr; }
+}
+
+/* ── Phone (480-600px) ─────────────────────────── */
+@media (max-width: 600px) {
+  .main { padding: 12px 10px; padding-top: 52px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stat-card { padding: 14px; }
+  .stat-value { font-size: 1.35rem; }
+  .stat-hint { font-size: 0.58rem; }
+  .chart-container { height: 220px; }
+  .chart-container-wide { height: 160px; }
+  .topbar h1 { font-size: 1.15rem; }
+  .logo span { font-size: 1.1rem; }
+  .sidebar { width: 240px; padding: 20px 16px; }
+  .nav-item { font-size: 0.82rem; padding: 9px 10px; }
+  .drawer { padding: 20px; }
+  .drawer h2 { font-size: 1.05rem; }
+  .msg-bubble { font-size: 0.8rem; max-width: 90%; }
+  .sd-item { padding: 10px 16px; gap: 10px; }
+  .sd-phone { font-size: 0.8rem; min-width: 100px; }
+  .pagination { flex-direction: column; gap: 8px; text-align: center; }
+}
+
+/* ── Small phone (<480px) ──────────────────────── */
+@media (max-width: 480px) {
+  html { font-size: 13px; }
+  .main { padding: 10px 8px; padding-top: 50px; }
+  .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { padding: 12px; }
+  .stat-value { font-size: 1.2rem; }
+  .stat-label { font-size: 0.6rem; letter-spacing: 0.5px; }
+  .info-icon { width: 14px; height: 14px; font-size: 0.5rem; }
+  .chart-container { height: 200px; }
+  .chart-container-wide { height: 150px; }
+  .mobile-toggle { top: 10px; left: 10px; padding: 6px 8px; font-size: 1rem; }
+  .panel { padding: 14px; border-radius: 8px; }
+  .topbar h1 { font-size: 1rem; }
+  .search-box { padding: 6px 10px; }
+  .search-box input { font-size: 0.78rem; }
+  .filter-bar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+  .filter-btn { white-space: nowrap; flex-shrink: 0; }
+  .drawer { padding: 16px; }
+  .detail-grid { grid-template-columns: 1fr; }
+  .sd-header h3 { font-size: 0.9rem; }
+  .sd-search input { font-size: 0.8rem; padding: 8px 12px; }
+}
+/* ── User Profile in Sidebar ────────────────────── */
+.user-section {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  margin-bottom: 8px;
+}
+.user-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border);
+}
+.user-avatar-placeholder {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-details {
+  flex: 1;
+  min-width: 0;
+}
+.user-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-email {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.logout-btn:hover { background: rgba(239,68,68,0.1); color: var(--red); }
+
+/* ── Admin Panel ───────────────────────────────── */
+.admin-panel {
+  margin-top: 16px;
+}
+.admin-user-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.admin-user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.admin-user-item:last-child { border-bottom: none; }
+.admin-user-email {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-user-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.admin-badge {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.admin-badge.config { background: rgba(139,92,246,0.15); color: #a78bfa; }
+.admin-badge.admin { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.admin-badge.dashboard { background: rgba(16,185,129,0.15); color: #34d399; }
+.admin-remove-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.admin-remove-btn:hover { border-color: var(--red); color: var(--red); }
+.admin-remove-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.admin-add-form {
+  display: flex;
+  gap: 10px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.admin-add-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  outline: none;
+}
+.admin-add-input:focus { border-color: var(--accent); }
+.admin-add-input::placeholder { color: var(--text-dim); }
+.admin-add-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.admin-add-btn:hover { opacity: 0.9; }
+.admin-status {
+  padding: 0 16px 12px;
+  font-size: 0.78rem;
+  min-height: 20px;
+}
+</style>
+</head>
+<body>
+
+<div id="globalTip"></div>
+<button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<div class="app">
+  <!-- ── Sidebar ───────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">LQ</div>
+      <div>
+        <span>LeadQ</span>
+        <small>Qualification Hub</small>
+      </div>
+    </div>
+
+    <div class="nav-section">Dashboard</div>
+    <div class="nav-item active" data-section="overview" onclick="switchSection('overview', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Overview
+    </div>
+    <div class="nav-item" data-section="leads" onclick="switchSection('leads', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      All Leads
+    </div>
+    <div class="nav-item" data-section="analysis" onclick="switchSection('analysis', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      Analysis
+    </div>
+
+    <div class="nav-section">Filters</div>
+    <div class="nav-item" onclick="filterByType('analysed')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Analysed Leads
+    </div>
+    <div class="nav-item" onclick="filterQualified()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Qualified Only
+    </div>
+
+    <!-- Admin nav (shown only for admins) -->
+    <div class="nav-section" id="adminNavSection" style="display:none">Admin</div>
+    <div class="nav-item" id="adminNavItem" style="display:none" onclick="switchSection('admin', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Manage Users
+    </div>
+
+    <!-- User section (replaces old footer) -->
+    <div class="user-section">
+      <div class="user-info" id="userInfo" style="display:none">
+        <img class="user-avatar" id="userAvatar" src="" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+        <div class="user-avatar-placeholder" id="userAvatarFallback" style="display:none"></div>
+        <div class="user-details">
+          <div class="user-name" id="userName"></div>
+          <div class="user-email" id="userEmail"></div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:0.7rem;color:var(--text-dim)">
+        Lead Qualification Agent<br>KW Group · WhatsApp Bot
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ──────────────────────────── -->
+  <main class="main">
+
+    <!-- ── Overview Section ────────────────────── -->
+    <div id="section-overview" class="section active">
+      <div class="topbar">
+        <h1>Dashboard <span>Overview</span></h1>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search by phone number…" id="globalSearch" onkeyup="handleGlobalSearch(event)" />
+        </div>
+      </div>
+
+      <div class="stat-grid" id="statGrid">
+        <div class="stat-card blue anim-fade-up anim-stagger-1" onclick="openStatDropdown('total', 'Total Leads')">
+          <div class="stat-label">Total Leads <span class="info-icon">i<span class="info-tip">Total number of documents in the database, including template-only records, chat conversations, and analysed leads.</span></span></div>
+          <div class="stat-value" id="s-total">—</div>
+          <div class="stat-hint">Click to view numbers →</div>
+        </div>
+        <div class="stat-card purple anim-fade-up anim-stagger-2" onclick="openStatDropdown('template', 'Templates Sent')">
+          <div class="stat-label">Templates Sent <span class="info-icon">i<span class="info-tip">WhatsApp template messages sent to phone numbers that have NOT yet started a conversation. These are outreach-only records.</span></span></div>
+          <div class="stat-value" id="s-template">—</div>
+          <div class="stat-hint">Click to view numbers →</div>
+        </div>
+        <div class="stat-card cyan anim-fade-up anim-stagger-3" onclick="openStatDropdown('chats', 'With Chats')">
+          <div class="stat-label">With Chats <span class="info-icon">i<span class="info-tip">Leads who have at least one message in the conversation — meaning the user replied or the AI bot engaged them.</span></span></div>
+          <div class="stat-value" id="s-chats">—</div>
+          <div class="stat-hint">Click to view numbers →</div>
+        </div>
+        <div class="stat-card orange anim-fade-up anim-stagger-4" onclick="openStatDropdown('analysed', 'Analysed')">
+          <div class="stat-label">Analysed <span class="info-icon">i<span class="info-tip">Leads whose chat conversations have been processed by the AI Lead Qualification Agent. The agent assigns intent, qualification status, and confidence score.</span></span></div>
+          <div class="stat-value" id="s-analysed">—</div>
+          <div class="stat-hint">Click to view numbers →</div>
+        </div>
+        <div class="stat-card green anim-fade-up anim-stagger-5" onclick="openStatDropdown('qualified', 'Qualified')">
+          <div class="stat-label">Qualified <span class="info-icon">i<span class="info-tip">Leads marked as QUALIFIED by the AI agent — they asked about price, cost, ROI, location, site visit, possession, loan, or EMI.</span></span></div>
+          <div class="stat-value" id="s-qualified">—</div>
+          <div class="stat-hint">Click to view numbers →</div>
+        </div>
+        <div class="stat-card red anim-fade-up anim-stagger-6" onclick="openStatDropdown('not_qualified', 'Not Qualified')">
+          <div class="stat-label">Not Qualified <span class="info-icon">i<span class="info-tip">Leads marked as NOT QUALIFIED — they did not express property buying signals like price inquiries, site visits, or financial questions.</span></span></div>
+          <div class="stat-value" id="s-notqualified">—</div>
+          <div class="stat-hint">Click to view numbers →</div>
+        </div>
+      </div>
+
+      <div class="chart-row">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Intent Distribution <span class="info-icon">i<span class="info-tip">Breakdown of analysed leads by AI-assigned intent: INTERESTED (asked about property), QUERY (general questions), NOT_INTERESTED, JUNK (spam/greetings only), FAILED (analysis couldn't determine).</span></span></div></div>
+          <div class="chart-container"><canvas id="chartIntent"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Confidence Spread <span class="info-icon">i<span class="info-tip">Distribution of AI confidence scores (0–100%) across analysed leads. Higher confidence means the AI is more certain the lead will convert to a booking. Bucketed into 5 ranges.</span></span></div></div>
+          <div class="chart-container"><canvas id="chartConfidence"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Template Campaigns <span class="info-icon">i<span class="info-tip">Number of WhatsApp template messages sent per project campaign (e.g. KW Delhi 6, KW Blue Pearl). Shows which campaign generated the most outreach.</span></span></div></div>
+          <div class="chart-container"><canvas id="chartTemplates"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Qualification Funnel <span class="info-icon">i<span class="info-tip">Shows the lead journey from top to bottom: Total documents → Template-only sends → Users who chatted → AI-analysed conversations → Qualified leads. Each bar uses the exact same values as the stat cards above.</span></span></div>
+        </div>
+        <div class="chart-container-wide"><canvas id="chartFunnel"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── Leads Section ──────────────────────── -->
+    <div id="section-leads" class="section">
+      <div class="topbar">
+        <h1>All <span>Leads</span></h1>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search sessionId…" id="leadSearch" onkeyup="handleLeadSearch(event)" />
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <button class="filter-btn active" data-type="" onclick="setDocType('', this)">All</button>
+        <button class="filter-btn" data-type="template" onclick="setDocType('template', this)">Templates</button>
+        <button class="filter-btn" data-type="chat" onclick="setDocType('chat', this)">Chats</button>
+        <button class="filter-btn" data-type="analysed" onclick="setDocType('analysed', this)">Analysed</button>
+        <div style="width:1px;height:24px;background:var(--border);margin:0 6px"></div>
+        <select class="filter-select" id="intentFilter" onchange="setIntentFilter(this.value)">
+          <option value="">All Intents</option>
+          <option value="INTERESTED">Interested</option>
+          <option value="QUERY">Query</option>
+          <option value="NOT_INTERESTED">Not Interested</option>
+          <option value="JUNK">Junk</option>
+          <option value="FAILED">Failed</option>
+        </select>
+        <select class="filter-select" id="qualFilter" onchange="setQualFilter(this.value)">
+          <option value="">All Qualification</option>
+          <option value="true">Qualified</option>
+          <option value="false">Not Qualified</option>
+        </select>
+      </div>
+
+      <div class="panel" style="padding:0">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th onclick="toggleSort('sessionId')">Session / Phone ↕</th>
+                <th>Type</th>
+                <th>Template</th>
+                <th>Intent</th>
+                <th>Qualified</th>
+                <th>Confidence</th>
+                <th>Messages</th>
+                <th>Analysed At</th>
+              </tr>
+            </thead>
+            <tbody id="leadsTable">
+              <tr><td colspan="8" class="loading"><div class="spinner"></div> Loading leads…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" style="padding:12px 14px">
+          <div id="pageInfo">Page 1</div>
+          <div class="page-btns">
+            <button class="page-btn" id="prevBtn" onclick="changePage(-1)" disabled>← Prev</button>
+            <button class="page-btn" id="nextBtn" onclick="changePage(1)">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Analysis Section ───────────────────── -->
+    <div id="section-analysis" class="section">
+      <div class="topbar">
+        <h1>Lead <span>Analysis</span></h1>
+      </div>
+      <div class="stat-grid" id="analysisStats"></div>
+      <div class="chart-row chart-row-2col">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Qualification Rate <span class="info-icon">i<span class="info-tip">Percentage of analysed leads that were marked as QUALIFIED vs NOT QUALIFIED by the AI agent.</span></span></div></div>
+          <div class="chart-container"><canvas id="chartQualRate"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Intent vs Confidence <span class="info-icon">i<span class="info-tip">Count of leads per intent category. Helps identify which intent types dominate and which are rare.</span></span></div></div>
+          <div class="chart-container"><canvas id="chartIntentConf"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Top Qualified Leads <span class="info-icon">i<span class="info-tip">Qualified leads ranked by confidence score (highest first). Shows signals detected and AI summary for each lead. Click any row to view full details.</span></span></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Phone</th>
+                <th>Intent</th>
+                <th>Confidence</th>
+                <th>Signals</th>
+                <th>Summary</th>
+              </tr>
+            </thead>
+            <tbody id="topLeadsTable">
+              <tr><td colspan="5" class="loading"><div class="spinner"></div> Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Admin Section (admins only) ───────────── -->
+    <div id="section-admin" class="section">
+      <div class="topbar">
+        <h1>Manage <span>Users</span></h1>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Authorized Users <span class="info-icon">i<span class="info-tip">Users who can sign in to this dashboard with Google. Config users are set in main.py and cannot be removed from here. Dashboard users can be added/removed by admins.</span></span></div>
+        </div>
+        <div class="admin-add-form">
+          <input type="email" class="admin-add-input" id="adminAddEmail" placeholder="Enter email address to add..." onkeydown="if(event.key==='Enter')addUser()" />
+          <button class="admin-add-btn" onclick="addUser()">+ Add User</button>
+        </div>
+        <div class="admin-status" id="adminStatus"></div>
+        <div class="admin-user-list" id="adminUserList">
+          <div style="padding:24px;text-align:center;color:var(--text-dim)">Loading users...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Stat Dropdown Modal ─────────────────────────── -->
+<div class="stat-dropdown-overlay" id="sdOverlay" onclick="closeStatDropdown()"></div>
+<div class="stat-dropdown" id="sdModal">
+  <div class="sd-header">
+    <h3><span id="sdTitle">Leads</span> <span class="sd-count" id="sdCount">0</span></h3>
+    <button class="sd-close" onclick="closeStatDropdown()">✕</button>
+  </div>
+  <div class="sd-search">
+    <input type="text" placeholder="Search phone number…" id="sdSearchInput" oninput="handleStatSearch()" />
+  </div>
+  <div class="sd-list" id="sdList">
+    <div class="sd-empty">Loading…</div>
+  </div>
+  <div class="sd-pagination">
+    <span id="sdPageInfo">Page 1</span>
+    <div class="sd-page-btns">
+      <button class="page-btn" id="sdPrevBtn" onclick="changeStatPage(-1)" disabled>← Prev</button>
+      <button class="page-btn" id="sdNextBtn" onclick="changeStatPage(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Detail Drawer ─────────────────────────────── -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  <div id="drawerContent">
+    <div class="loading"><div class="spinner"></div> Loading…</div>
+  </div>
+</div>
+
+
+<script>
+// ── State ──────────────────────────────────────────
+const API = '';  // Same origin
+
+// ── Count-up Animation ────────────────────────────
+function animateValue(id, end, duration = 1200) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = 0;
+  const startTime = performance.now();
+  
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    // Ease out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(start + (end - start) * eased);
+    el.textContent = current.toLocaleString();
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+let currentPage = 1;
+let currentFilters = { doc_type: '', intent: '', qualified: '', search: '' };
+let charts = {};
+
+// Stat dropdown state
+let sdCategory = '';
+let sdPage = 1;
+let sdSearch = '';
+let sdSearchTimer;
+
+// ── Init ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadCurrentUser();
+  loadStats();
+  loadLeads();
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeStatDropdown();
+      closeDrawer();
+    }
+  });
+});
+
+// ── Stat Dropdown ──────────────────────────────────
+async function openStatDropdown(category, title) {
+  sdCategory = category;
+  sdPage = 1;
+  sdSearch = '';
+  document.getElementById('sdSearchInput').value = '';
+  document.getElementById('sdTitle').textContent = title;
+  document.getElementById('sdOverlay').classList.add('open');
+  document.getElementById('sdModal').classList.add('open');
+  await loadStatLeads();
+}
+
+function closeStatDropdown() {
+  document.getElementById('sdOverlay').classList.remove('open');
+  document.getElementById('sdModal').classList.remove('open');
+}
+
+async function loadStatLeads() {
+  const list = document.getElementById('sdList');
+  list.innerHTML = '<div class="sd-empty"><div class="spinner" style="margin:0 auto 10px"></div>Loading…</div>';
+
+  const params = new URLSearchParams({
+    page: sdPage,
+    limit: 50,
+    ...(sdSearch && { search: sdSearch }),
+  });
+
+  try {
+    const res = await fetch(API + '/api/stat-leads/' + sdCategory + '?' + params);
+    const d = await res.json();
+    renderStatLeads(d);
+  } catch (e) {
+    list.innerHTML = '<div class="sd-empty" style="color:var(--red)">Error loading data.</div>';
+  }
+}
+
+function renderStatLeads(d) {
+  const list = document.getElementById('sdList');
+  document.getElementById('sdCount').textContent = d.total.toLocaleString();
+
+  if (!d.data || d.data.length === 0) {
+    list.innerHTML = '<div class="sd-empty">No leads found.</div>';
+    document.getElementById('sdPageInfo').textContent = 'No results';
+    document.getElementById('sdPrevBtn').disabled = true;
+    document.getElementById('sdNextBtn').disabled = true;
+    return;
+  }
+
+  list.innerHTML = d.data.map(item => {
+    const typeBadge = item.type === 'analysed'
+      ? '<span class="badge badge-green">Analysed</span>'
+      : item.type === 'chat'
+        ? '<span class="badge badge-blue">Chat</span>'
+        : '<span class="badge badge-gray">Template</span>';
+
+    const intentBadge = item.intent
+      ? `<span class="badge badge-${intentColor(item.intent)}" style="font-size:0.65rem">${item.intent}</span>`
+      : '';
+
+    const qualBadge = item.qualified === true
+      ? '<span class="badge badge-green" style="font-size:0.65rem">Qualified</span>'
+      : item.qualified === false
+        ? '<span class="badge badge-red" style="font-size:0.65rem">Not Qual.</span>'
+        : '';
+
+    const confHtml = item.confidence != null
+      ? `<div class="conf-bar">
+           <div class="conf-track" style="width:40px"><div class="conf-fill" style="width:${item.confidence * 100}%;background:${confColor(item.confidence)}"></div></div>
+           <span class="conf-val" style="font-size:0.72rem">${(item.confidence * 100).toFixed(0)}%</span>
+         </div>`
+      : '';
+
+    return `<div class="sd-item" onclick="statItemClick('${item.sessionId}')">
+      <span class="sd-phone">${item.sessionId}</span>
+      <div class="sd-meta">
+        ${typeBadge}
+        ${intentBadge}
+        ${qualBadge}
+        ${confHtml}
+        <span class="sd-arrow">→</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('sdPageInfo').textContent = `Page ${d.page} of ${d.totalPages}`;
+  document.getElementById('sdPrevBtn').disabled = d.page <= 1;
+  document.getElementById('sdNextBtn').disabled = d.page >= d.totalPages;
+}
+
+function statItemClick(sessionId) {
+  closeStatDropdown();
+  openDetail(sessionId);
+}
+
+function changeStatPage(dir) {
+  sdPage += dir;
+  loadStatLeads();
+}
+
+function handleStatSearch() {
+  clearTimeout(sdSearchTimer);
+  sdSearchTimer = setTimeout(() => {
+    sdSearch = document.getElementById('sdSearchInput').value.trim();
+    sdPage = 1;
+    loadStatLeads();
+  }, 350);
+}
+
+// ── Navigation ─────────────────────────────────────
+function switchSection(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+
+  if (name === 'analysis') loadAnalysis();
+  if (name === 'leads') loadLeads();
+  if (name === 'admin') loadAdminUsers();
+
+  // Close mobile sidebar
+  document.querySelector('.sidebar').classList.remove('open');
+}
+
+// ── Stats ──────────────────────────────────────────
+async function loadStats() {
+  try {
+    const res = await fetch(API + '/api/stats');
+    const d = await res.json();
+
+    // Animate stat numbers
+    animateValue('s-total', d.total);
+    animateValue('s-template', d.templateOnly);
+    animateValue('s-chats', d.withMessages);
+    animateValue('s-analysed', d.analysed);
+    animateValue('s-qualified', d.qualified);
+    animateValue('s-notqualified', d.notQualified);
+
+    renderIntentChart(d.intentDistribution);
+    renderConfidenceChart(d.confidenceDistribution);
+    renderTemplateChart(d.templateDistribution);
+    renderFunnelChart(d);
+  } catch (e) {
+    console.error('Stats error:', e);
+  }
+}
+
+// ── Charts ─────────────────────────────────────────
+const COLORS = {
+  INTERESTED: '#10b981', QUERY: '#3b82f6', NOT_INTERESTED: '#ef4444',
+  JUNK: '#6b7280', FAILED: '#f59e0b'
+};
+
+function renderIntentChart(data) {
+  const ctx = document.getElementById('chartIntent');
+  if (charts.intent) charts.intent.destroy();
+  charts.intent = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(data),
+      datasets: [{
+        data: Object.values(data),
+        backgroundColor: Object.keys(data).map(k => COLORS[k] || '#8b5cf6'),
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: 20 },
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#7a8ba0', padding: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((ctx.raw / total) * 100).toFixed(1);
+              return ` ${ctx.label}: ${ctx.raw} leads (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderConfidenceChart(data) {
+  const ctx = document.getElementById('chartConfidence');
+  if (charts.conf) charts.conf.destroy();
+  charts.conf = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.range),
+      datasets: [{
+        data: data.map(d => d.count),
+        backgroundColor: ['#ef4444', '#f59e0b', '#eab308', '#10b981', '#3b82f6'],
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => `Confidence: ${items[0].label}`,
+            label: (ctx) => ` ${ctx.raw} leads in this range`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7a8ba0', font: { size: 10 } } },
+        y: { grid: { color: '#1e2a38' }, ticks: { color: '#7a8ba0' } }
+      }
+    }
+  });
+}
+
+function renderTemplateChart(data) {
+  const ctx = document.getElementById('chartTemplates');
+  if (charts.tmpl) charts.tmpl.destroy();
+  const labels = Object.keys(data).map(k => k.replace(' template sent successfully', '').replace('template sent successfully', 'Unknown'));
+  charts.tmpl = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: Object.values(data),
+        backgroundColor: '#8b5cf6',
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.raw.toLocaleString()} templates sent`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#1e2a38' }, ticks: { color: '#7a8ba0' } },
+        y: { grid: { display: false }, ticks: { color: '#7a8ba0', font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function renderFunnelChart(d) {
+  const ctx = document.getElementById('chartFunnel');
+  if (charts.funnel) charts.funnel.destroy();
+
+  const funnelLabels = [
+    `Total Leads (${d.total.toLocaleString()})`,
+    `Templates Sent (${d.templateOnly.toLocaleString()})`,
+    `Engaged / Chats (${d.withMessages.toLocaleString()})`,
+    `Analysed (${d.analysed.toLocaleString()})`,
+    `Qualified (${d.qualified.toLocaleString()})`
+  ];
+  const funnelData = [d.total, d.templateOnly, d.withMessages, d.analysed, d.qualified];
+  const funnelDescriptions = [
+    'All documents in database',
+    'Template-only records (no conversation yet)',
+    'Leads with at least one chat message',
+    'Chats processed by AI qualification agent',
+    'Leads that passed qualification criteria'
+  ];
+
+  charts.funnel = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: funnelLabels,
+      datasets: [{
+        data: funnelData,
+        backgroundColor: ['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#10b981'],
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => items[0].label,
+            label: (ctx) => ` ${funnelDescriptions[ctx.dataIndex]}`,
+            afterLabel: (ctx) => {
+              if (ctx.dataIndex > 0) {
+                const prev = funnelData[ctx.dataIndex - 1];
+                const curr = funnelData[ctx.dataIndex];
+                const pct = prev > 0 ? ((curr / prev) * 100).toFixed(1) : '0';
+                return ` Conversion from prev step: ${pct}%`;
+              }
+              return '';
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7a8ba0', font: { size: 10 } } },
+        y: { grid: { color: '#1e2a38' }, ticks: { color: '#7a8ba0' } }
+      }
+    }
+  });
+}
+
+// ── Leads Table ────────────────────────────────────
+async function loadLeads() {
+  const params = new URLSearchParams({
+    page: currentPage,
+    limit: 25,
+    ...(currentFilters.doc_type && { doc_type: currentFilters.doc_type }),
+    ...(currentFilters.intent && { intent: currentFilters.intent }),
+    ...(currentFilters.qualified && { qualified: currentFilters.qualified }),
+    ...(currentFilters.search && { search: currentFilters.search }),
+  });
+
+  const tbody = document.getElementById('leadsTable');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading"><div class="spinner"></div> Loading…</td></tr>';
+
+  try {
+    const res = await fetch(API + '/api/leads?' + params);
+    const d = await res.json();
+    renderLeadsTable(d);
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:24px;color:var(--red)">Error loading leads. Is the server running?</td></tr>';
+  }
+}
+
+function renderLeadsTable(d) {
+  const tbody = document.getElementById('leadsTable');
+  if (!d.data || d.data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:24px;color:var(--text-dim)">No leads found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = d.data.map(doc => {
+    const hasMessages = doc.messages && doc.messages.length > 0;
+    const isAnalysed = doc.leadAnalysed === true;
+    const output = doc.output || {};
+    const type = isAnalysed ? 'analysed' : hasMessages ? 'chat' : 'template';
+    const typeBadge = type === 'analysed'
+      ? '<span class="badge badge-green">Analysed</span>'
+      : type === 'chat'
+        ? '<span class="badge badge-blue">Chat</span>'
+        : '<span class="badge badge-gray">Template</span>';
+
+    const intentBadge = output.intent
+      ? `<span class="badge badge-${intentColor(output.intent)}">${output.intent}</span>`
+      : '—';
+
+    const qualBadge = output.qualified === true
+      ? '<span class="badge badge-green">Yes</span>'
+      : output.qualified === false
+        ? '<span class="badge badge-red">No</span>'
+        : '—';
+
+    const conf = output.confidence != null
+      ? `<div class="conf-bar">
+           <div class="conf-track"><div class="conf-fill" style="width:${output.confidence * 100}%;background:${confColor(output.confidence)}"></div></div>
+           <span class="conf-val">${(output.confidence * 100).toFixed(0)}%</span>
+         </div>`
+      : '—';
+
+    const msgCount = doc.messageLength || (doc.messages ? doc.messages.length : '—');
+    const tmpl = doc.template ? truncate(doc.template, 30) : '—';
+    const analysedAt = doc.analysedAt ? new Date(doc.analysedAt).toLocaleDateString() : '—';
+
+    return `<tr onclick="openDetail('${doc.sessionId}')">
+      <td style="font-family:var(--mono);font-size:0.82rem">${doc.sessionId}</td>
+      <td>${typeBadge}</td>
+      <td style="font-size:0.8rem;color:var(--text-dim)">${tmpl}</td>
+      <td>${intentBadge}</td>
+      <td>${qualBadge}</td>
+      <td>${conf}</td>
+      <td>${msgCount}</td>
+      <td style="font-size:0.8rem;color:var(--text-dim)">${analysedAt}</td>
+    </tr>`;
+  }).join('');
+
+  // Pagination
+  document.getElementById('pageInfo').textContent = `Page ${d.page} of ${d.totalPages} · ${d.total} results`;
+  document.getElementById('prevBtn').disabled = d.page <= 1;
+  document.getElementById('nextBtn').disabled = d.page >= d.totalPages;
+}
+
+function intentColor(intent) {
+  return { INTERESTED: 'green', QUERY: 'blue', NOT_INTERESTED: 'red', JUNK: 'gray', FAILED: 'orange' }[intent] || 'gray';
+}
+function confColor(c) {
+  if (c >= 0.7) return '#10b981';
+  if (c >= 0.4) return '#f59e0b';
+  return '#ef4444';
+}
+function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+
+// ── Filters ────────────────────────────────────────
+function setDocType(type, el) {
+  currentFilters.doc_type = type;
+  currentPage = 1;
+  document.querySelectorAll('.filter-btn[data-type]').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  loadLeads();
+}
+function setIntentFilter(val) { currentFilters.intent = val; currentPage = 1; loadLeads(); }
+function setQualFilter(val) { currentFilters.qualified = val; currentPage = 1; loadLeads(); }
+function changePage(dir) { currentPage += dir; loadLeads(); }
+function filterByType(type) {
+  switchSection('leads', document.querySelector('.nav-item[data-section="leads"]'));
+  setDocType(type, document.querySelector(`.filter-btn[data-type="${type}"]`));
+}
+function filterQualified() {
+  switchSection('leads', document.querySelector('.nav-item[data-section="leads"]'));
+  document.getElementById('qualFilter').value = 'true';
+  setQualFilter('true');
+}
+
+// ── Search ─────────────────────────────────────────
+let searchTimer;
+function handleLeadSearch(e) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    currentFilters.search = e.target.value;
+    currentPage = 1;
+    loadLeads();
+  }, 400);
+}
+function handleGlobalSearch(e) {
+  if (e.key === 'Enter' && e.target.value.trim()) {
+    currentFilters.search = e.target.value.trim();
+    switchSection('leads', document.querySelector('.nav-item[data-section="leads"]'));
+    document.getElementById('leadSearch').value = currentFilters.search;
+    loadLeads();
+  }
+}
+function toggleSort(field) {
+  // Simple sort toggle placeholder
+  loadLeads();
+}
+
+// ── Detail Drawer ──────────────────────────────────
+async function openDetail(sessionId) {
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerContent').innerHTML = '<div class="loading"><div class="spinner"></div> Loading…</div>';
+
+  try {
+    const res = await fetch(API + '/api/lead/' + sessionId);
+    const d = await res.json();
+    renderDrawer(d);
+  } catch (e) {
+    document.getElementById('drawerContent').innerHTML = '<p style="color:var(--red)">Error loading details.</p>';
+  }
+}
+
+function renderDrawer(d) {
+  let html = `<h2>Lead Details</h2><div class="session-id">📱 ${d.sessionId}</div>`;
+
+  // Templates
+  if (d.templates && d.templates.length > 0) {
+    html += `<div class="detail-section">
+      <h3>Templates Sent (${d.templates.length})</h3>
+      ${d.templates.map(t => `<div class="signal-tag" style="margin-bottom:6px">${t.template || 'Unknown'}</div>`).join('')}
+    </div>`;
+  }
+
+  // Chat Messages
+  if (d.chat && d.chat.messages && d.chat.messages.length > 0) {
+    html += `<div class="detail-section">
+      <h3>Conversation (${d.chat.messages.length} messages)</h3>
+      <div class="chat-messages">
+        ${d.chat.messages.map(m => {
+          const content = m?.data?.content || '';
+          if (!content) return '';
+          const cls = m.type === 'human' ? 'msg-human' : 'msg-ai';
+          const label = m.type === 'human' ? 'User' : 'AI Bot';
+          return `<div>
+            <div class="msg-label">${label}</div>
+            <div class="msg-bubble ${cls}">${escapeHtml(content)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Analysis
+  if (d.analysis && d.analysis.output) {
+    const o = d.analysis.output;
+    html += `<div class="detail-section">
+      <h3>AI Analysis</h3>
+      <div class="detail-grid">
+        <div class="detail-item">
+          <label>Intent</label>
+          <span class="badge badge-${intentColor(o.intent)}">${o.intent || '—'}</span>
+        </div>
+        <div class="detail-item">
+          <label>Qualified</label>
+          <span>${o.qualified ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>'}</span>
+        </div>
+        <div class="detail-item">
+          <label>Confidence</label>
+          <div class="conf-bar">
+            <div class="conf-track" style="width:80px"><div class="conf-fill" style="width:${(o.confidence || 0) * 100}%;background:${confColor(o.confidence || 0)}"></div></div>
+            <span class="conf-val">${((o.confidence || 0) * 100).toFixed(1)}%</span>
+          </div>
+        </div>
+        <div class="detail-item">
+          <label>Analysed At</label>
+          <span style="font-size:0.82rem">${d.analysis.analysedAt ? new Date(d.analysis.analysedAt).toLocaleString() : '—'}</span>
+        </div>
+      </div>
+    </div>`;
+
+    if (o.summary && o.summary.length > 0) {
+      html += `<div class="detail-section">
+        <h3>Summary</h3>
+        <ul class="summary-list">${o.summary.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
+      </div>`;
+    }
+
+    if (o.signals && o.signals.length > 0) {
+      html += `<div class="detail-section">
+        <h3>Signals</h3>
+        <div class="signal-tags">${o.signals.map(s => `<div class="signal-tag">${escapeHtml(s)}</div>`).join('')}</div>
+      </div>`;
+    }
+  }
+
+  if (!d.chat && (!d.templates || d.templates.length === 0) && !d.analysis) {
+    html += '<p style="color:var(--text-dim);padding:20px 0">No detailed data available for this lead.</p>';
+  }
+
+  document.getElementById('drawerContent').innerHTML = html;
+}
+
+function closeDrawer() {
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Analysis Section ───────────────────────────────
+async function loadAnalysis() {
+  try {
+    const [statsRes, qualRes] = await Promise.all([
+      fetch(API + '/api/stats'),
+      fetch(API + '/api/export/qualified')
+    ]);
+    const stats = await statsRes.json();
+    const qualified = await qualRes.json();
+
+    // Stats cards
+    const total = stats.analysed || 1;
+    const qualRate = ((stats.qualified / total) * 100).toFixed(1);
+    const avgConf = stats.confidenceDistribution.length > 0
+      ? '—'
+      : '—';
+
+    document.getElementById('analysisStats').innerHTML = `
+      <div class="stat-card green">
+        <div class="stat-label">Qualification Rate <span class="info-icon">i<span class="info-tip">Percentage of analysed leads that the AI marked as qualified (asked about price, location, site visit, etc).</span></span></div>
+        <div class="stat-value">${qualRate}%</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Analysed <span class="info-icon">i<span class="info-tip">Total number of chat conversations that have been processed by the AI Lead Qualification Agent.</span></span></div>
+        <div class="stat-value">${stats.analysed}</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Top Intent <span class="info-icon">i<span class="info-tip">The most frequently assigned intent category among all analysed leads.</span></span></div>
+        <div class="stat-value" style="font-size:1.2rem">${Object.keys(stats.intentDistribution)[0] || '—'}</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">Qualified Leads <span class="info-icon">i<span class="info-tip">Absolute count of leads that passed the AI qualification criteria.</span></span></div>
+        <div class="stat-value">${stats.qualified}</div>
+      </div>
+    `;
+
+    // Qual rate chart
+    const qrCtx = document.getElementById('chartQualRate');
+    if (charts.qualRate) charts.qualRate.destroy();
+    charts.qualRate = new Chart(qrCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Qualified', 'Not Qualified'],
+        datasets: [{
+          data: [stats.qualified, stats.notQualified],
+          backgroundColor: ['#10b981', '#ef4444'],
+          borderWidth: 0,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: 20 },
+        cutout: '70%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#7a8ba0', padding: 16, font: { size: 12 } } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = ((ctx.raw / total) * 100).toFixed(1);
+                return ` ${ctx.label}: ${ctx.raw} leads (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Intent vs confidence chart
+    const intents = Object.keys(stats.intentDistribution);
+    const icCtx = document.getElementById('chartIntentConf');
+    if (charts.intentConf) charts.intentConf.destroy();
+    charts.intentConf = new Chart(icCtx, {
+      type: 'bar',
+      data: {
+        labels: intents,
+        datasets: [{
+          label: 'Count',
+          data: intents.map(i => stats.intentDistribution[i]),
+          backgroundColor: intents.map(i => COLORS[i] || '#8b5cf6'),
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.raw} leads with intent: ${ctx.label}`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#7a8ba0' } },
+          y: { grid: { color: '#1e2a38' }, ticks: { color: '#7a8ba0' } }
+        }
+      }
+    });
+
+    // Top qualified table
+    const tbody = document.getElementById('topLeadsTable');
+    if (qualified.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;color:var(--text-dim)">No qualified leads yet.</td></tr>';
+    } else {
+      tbody.innerHTML = qualified.slice(0, 20).map(q => `
+        <tr onclick="openDetail('${q.sessionId}')" style="cursor:pointer">
+          <td style="font-family:var(--mono);font-size:0.82rem">${q.sessionId}</td>
+          <td><span class="badge badge-${intentColor(q.intent)}">${q.intent || '—'}</span></td>
+          <td>
+            <div class="conf-bar">
+              <div class="conf-track"><div class="conf-fill" style="width:${(q.confidence || 0) * 100}%;background:${confColor(q.confidence || 0)}"></div></div>
+              <span class="conf-val">${((q.confidence || 0) * 100).toFixed(0)}%</span>
+            </div>
+          </td>
+          <td><div class="signal-tags">${(q.signals || []).map(s => `<span class="signal-tag">${s}</span>`).join('')}</div></td>
+          <td style="font-size:0.8rem;color:var(--text-dim);white-space:normal;max-width:250px">${(q.summary || []).join('; ')}</td>
+        </tr>
+      `).join('');
+    }
+  } catch (e) {
+    console.error('Analysis error:', e);
+  }
+}
+
+// ── Info Tooltip (Global) ───────────────────────────
+const tip = document.getElementById('globalTip');
+
+document.addEventListener('mouseover', (e) => {
+  const icon = e.target.closest('.info-icon');
+  if (!icon) return;
+  const data = icon.querySelector('.info-tip');
+  if (!data) return;
+  
+  tip.textContent = data.textContent;
+  tip.style.display = 'block';
+  
+  const rect = icon.getBoundingClientRect();
+  let top = rect.bottom + 10;
+  let left = rect.left + rect.width / 2 - 135;
+  
+  // Keep within viewport
+  if (left < 10) left = 10;
+  if (left + 270 > window.innerWidth - 10) left = window.innerWidth - 280;
+  if (top + tip.offsetHeight > window.innerHeight - 10) {
+    top = rect.top - tip.offsetHeight - 10;
+  }
+  
+  tip.style.top = top + 'px';
+  tip.style.left = left + 'px';
+});
+
+document.addEventListener('mouseout', (e) => {
+  const icon = e.target.closest('.info-icon');
+  if (!icon) return;
+  tip.style.display = 'none';
+});
+
+// Prevent info icon click from opening stat dropdown
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.info-icon')) e.stopPropagation();
+}, true);
+
+
+// ══════════════════════════════════════════════════════
+// AUTH & USER MANAGEMENT
+// ══════════════════════════════════════════════════════
+
+let currentUser = null;
+
+async function loadCurrentUser() {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) return;
+    currentUser = await res.json();
+
+    // Show user info in sidebar
+    const userInfo = document.getElementById('userInfo');
+    if (userInfo) {
+      userInfo.style.display = 'flex';
+      document.getElementById('userName').textContent = currentUser.name;
+      document.getElementById('userEmail').textContent = currentUser.email;
+
+      if (currentUser.picture) {
+        document.getElementById('userAvatar').src = currentUser.picture;
+      } else {
+        document.getElementById('userAvatar').style.display = 'none';
+        const fb = document.getElementById('userAvatarFallback');
+        fb.style.display = 'flex';
+        fb.textContent = currentUser.name.charAt(0).toUpperCase();
+      }
+    }
+
+    // Show admin nav if admin
+    if (currentUser.is_admin) {
+      const adminNav = document.getElementById('adminNavSection');
+      const adminItem = document.getElementById('adminNavItem');
+      if (adminNav) adminNav.style.display = '';
+      if (adminItem) adminItem.style.display = '';
+    }
+  } catch (e) {
+    console.log('Auth check:', e);
+  }
+}
+
+async function doLogout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch (e) {}
+  window.location.href = '/login';
+}
+
+
+// ── Admin: User Management ─────────────────────────
+
+async function loadAdminUsers() {
+  const list = document.getElementById('adminUserList');
+  if (!list) return;
+  list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-dim)"><div class="spinner" style="margin:0 auto 10px"></div>Loading...</div>';
+
+  try {
+    const res = await fetch('/api/admin/users');
+    if (!res.ok) {
+      list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--red)">Access denied or error loading users.</div>';
+      return;
+    }
+    const data = await res.json();
+    renderAdminUsers(data.users);
+  } catch (e) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--red)">Failed to load users.</div>';
+  }
+}
+
+function renderAdminUsers(users) {
+  const list = document.getElementById('adminUserList');
+  if (!users || users.length === 0) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-dim)">No users found.</div>';
+    return;
+  }
+
+  list.innerHTML = users.map(u => {
+    const badges = [];
+    if (u.isConfigUser) badges.push('<span class="admin-badge config">Config</span>');
+    if (u.source === 'dashboard') badges.push('<span class="admin-badge dashboard">Added from dashboard</span>');
+
+    const canRemove = !u.isConfigUser;
+
+    return `<div class="admin-user-item">
+      <div class="admin-user-email">${escapeHtml(u.email)}</div>
+      <div class="admin-user-meta">
+        ${badges.join('')}
+        ${canRemove
+          ? `<button class="admin-remove-btn" onclick="removeUser('${escapeHtml(u.email)}')">Remove</button>`
+          : `<button class="admin-remove-btn" disabled title="Config users can only be removed from main.py">Remove</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addUser() {
+  const input = document.getElementById('adminAddEmail');
+  const status = document.getElementById('adminStatus');
+  const email = input.value.trim().toLowerCase();
+
+  if (!email || !email.includes('@')) {
+    status.innerHTML = '<span style="color:var(--red)">Please enter a valid email address.</span>';
+    return;
+  }
+
+  status.innerHTML = '<span style="color:var(--text-dim)">Adding...</span>';
+
+  try {
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      status.innerHTML = `<span style="color:var(--green)">✓ ${escapeHtml(email)} added successfully.</span>`;
+      input.value = '';
+      loadAdminUsers();
+    } else {
+      status.innerHTML = `<span style="color:var(--red)">${escapeHtml(data.detail || data.error || 'Failed to add user.')}</span>`;
+    }
+  } catch (e) {
+    status.innerHTML = '<span style="color:var(--red)">Network error.</span>';
+  }
+
+  setTimeout(() => { status.innerHTML = ''; }, 5000);
+}
+
+async function removeUser(email) {
+  if (!confirm(`Remove ${email} from the allowed users list?`)) return;
+
+  const status = document.getElementById('adminStatus');
+  status.innerHTML = '<span style="color:var(--text-dim)">Removing...</span>';
+
+  try {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
+    const data = await res.json();
+
+    if (res.ok) {
+      status.innerHTML = `<span style="color:var(--green)">✓ ${escapeHtml(email)} removed.</span>`;
+      loadAdminUsers();
+    } else {
+      status.innerHTML = `<span style="color:var(--red)">${escapeHtml(data.detail || 'Failed to remove user.')}</span>`;
+    }
+  } catch (e) {
+    status.innerHTML = '<span style="color:var(--red)">Network error.</span>';
+  }
+
+  setTimeout(() => { status.innerHTML = ''; }, 5000);
+}
+</script>
+
+</body>
+</html>
